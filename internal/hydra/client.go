@@ -47,6 +47,16 @@ type Result struct {
 	Rows    [][]Value
 }
 
+// Error is HydraDB's error envelope. Code is a short machine name like
+// "unauthenticated" or "invalid_query"; Message says what went wrong.
+type Error struct {
+	Status  int    `json:"-"`
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+func (e *Error) Error() string { return "hydradb: " + e.Code + ": " + e.Message }
+
 type request struct {
 	CellID     string         `json:"cell_id"`
 	Query      string         `json:"query"`
@@ -108,7 +118,14 @@ func (c *Client) post(ctx context.Context, body request, out *response) error {
 		return err
 	}
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("hydradb: %s: %s", resp.Status, strings.TrimSpace(string(data)))
+		var env struct {
+			Error Error `json:"error"`
+		}
+		if json.Unmarshal(data, &env) != nil || env.Error.Code == "" {
+			return fmt.Errorf("hydradb: %s: %s", resp.Status, strings.TrimSpace(string(data)))
+		}
+		env.Error.Status = resp.StatusCode
+		return &env.Error
 	}
 	return json.Unmarshal(data, out)
 }
