@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"text/tabwriter"
 	"time"
 
 	"github.com/Rakshit-gen/depblast/internal/dep"
@@ -58,6 +59,7 @@ func runIndex(ctx context.Context, args []string) error {
 	start := time.Now()
 	graphs, errs := readAll(ctx, files)
 	failed, pkgs := 0, 0
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 	for i, f := range files {
 		if errs[i] != nil {
 			fmt.Fprintf(os.Stderr, "skipped %s: %v\n", rel(f), errs[i])
@@ -68,8 +70,9 @@ func runIndex(ctx context.Context, args []string) error {
 			return fmt.Errorf("storing %s: %w", rel(f), err)
 		}
 		pkgs += len(graphs[i].Deps)
-		fmt.Printf("%-50s %6d packages\n", rel(f), len(graphs[i].Deps))
+		fmt.Fprintf(w, "%s\t%d packages\t\n", rel(f), len(graphs[i].Deps))
 	}
+	w.Flush()
 	fmt.Printf("indexed %d lockfiles, %d packages in %.1fs\n", len(files)-failed, pkgs, time.Since(start).Seconds())
 	if failed > 0 {
 		return fmt.Errorf("%d lockfiles could not be read", failed)
