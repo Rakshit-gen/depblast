@@ -37,3 +37,37 @@ func TestAffectingFollowsPages(t *testing.T) {
 		t.Fatalf("got %+v", got)
 	}
 }
+
+func TestVulnCache(t *testing.T) {
+	fetches := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fetches++
+		if r.URL.Path != "/v1/vulns/GHSA-35jh-r3h4-6jhm" {
+			t.Errorf("path %s", r.URL.Path)
+		}
+		w.Write([]byte(`{"id":"GHSA-35jh-r3h4-6jhm","modified":"2026-09-10","summary":"Command Injection in lodash","database_specific":{"severity":"HIGH"}}`))
+	}))
+	defer srv.Close()
+	c := New()
+	c.BaseURL = srv.URL
+	cache := t.TempDir()
+	ref := Ref{ID: "GHSA-35jh-r3h4-6jhm", Modified: "2026-09-10"}
+	for range 2 {
+		v, err := c.Vuln(t.Context(), ref, cache)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if v.Summary != "Command Injection in lodash" || v.DatabaseSpecific.Severity != "HIGH" {
+			t.Fatalf("vuln %+v", v)
+		}
+	}
+	if fetches != 1 {
+		t.Fatalf("fetched %d times, want 1", fetches)
+	}
+	// A newer modified time means the cached copy is stale.
+	ref.Modified = "2026-10-01"
+	c.Vuln(t.Context(), ref, cache)
+	if fetches != 2 {
+		t.Fatalf("stale record not refetched")
+	}
+}
