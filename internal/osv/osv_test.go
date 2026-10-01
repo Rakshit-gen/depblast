@@ -78,16 +78,20 @@ func TestFixedIn(t *testing.T) {
 		{"package":{"name":"lodash","ecosystem":"npm"},"ranges":[{"type":"SEMVER","events":[{"introduced":"0"},{"fixed":"4.17.21"}]}]},
 		{"package":{"name":"lodash","ecosystem":"npm"},"ranges":[{"type":"SEMVER","events":[{"introduced":"3.0.0"},{"fixed":"3.10.2"}]}]},
 		{"package":{"name":"lodash","ecosystem":"npm"},"ranges":[{"type":"GIT","events":[{"introduced":"0"},{"fixed":"abc123"}]}]},
-		{"package":{"name":"Django","ecosystem":"PyPI"},"ranges":[{"type":"ECOSYSTEM","events":[{"introduced":"4.2"},{"fixed":"4.2.7"}]}]}
+		{"package":{"name":"Django","ecosystem":"PyPI"},"ranges":[{"type":"ECOSYSTEM","events":[{"introduced":"4.2"},{"fixed":"4.2.7"},{"introduced":"5.0"},{"fixed":"5.0.1"}]}]},
+		{"package":{"name":"left-pad","ecosystem":"npm"},"ranges":[{"type":"SEMVER","events":[{"introduced":"0"},{"last_affected":"1.3.0"}]}]}
 	]}`), &v)
 	for _, c := range []struct {
 		p    dep.Pkg
 		want string
 	}{
 		{dep.Pkg{Eco: dep.Npm, Name: "lodash", Version: "4.17.20"}, "4.17.21"},
-		{dep.Pkg{Eco: dep.Npm, Name: "lodash", Version: "3.5.0"}, "3.10.2"},
+		// 3.10.2 closes the second range, but the first still covers it.
+		{dep.Pkg{Eco: dep.Npm, Name: "lodash", Version: "3.5.0"}, "4.17.21"},
 		{dep.Pkg{Eco: dep.Npm, Name: "lodash", Version: "4.17.21"}, ""},
 		{dep.Pkg{Eco: dep.PyPI, Name: "django", Version: "4.2.1"}, "4.2.7"},
+		{dep.Pkg{Eco: dep.PyPI, Name: "django", Version: "5.0"}, "5.0.1"},
+		{dep.Pkg{Eco: dep.Npm, Name: "left-pad", Version: "1.2.0"}, ""},
 		{dep.Pkg{Eco: dep.Cargo, Name: "lodash", Version: "1.0.0"}, ""},
 	} {
 		if got := v.FixedIn(c.p); got != c.want {

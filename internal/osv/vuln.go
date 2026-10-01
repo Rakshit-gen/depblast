@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/Rakshit-gen/depblast/internal/dep"
@@ -63,11 +64,17 @@ func (c *Client) Vuln(ctx context.Context, ref Ref, cache string) (*Vuln, error)
 	return &v, nil
 }
 
-// FixedIn returns the oldest version newer than p.Version that the record
-// says fixes p's package, or "" when no fix is listed. Git commit ranges
-// are skipped, since they name commits rather than versions.
+// FixedIn returns the oldest listed fixed version, newer than
+// p.Version, that no range of the record still covers, or "" when there
+// is none. Git commit ranges are skipped, since they name commits rather
+// than versions.
 func (v *Vuln) FixedIn(p dep.Pkg) string {
-	best := ""
+	type interval struct {
+		from, to  string
+		inclusive bool // to is a last_affected version
+	}
+	var spans []interval
+	var fixes []string
 	for _, a := range v.Affected {
 		if a.Package.Ecosystem != p.Eco || !samePkg(p.Eco, a.Package.Name, p.Name) {
 			continue
@@ -76,15 +83,44 @@ func (v *Vuln) FixedIn(p dep.Pkg) string {
 			if r.Type == "GIT" {
 				continue
 			}
+			open := ""
 			for _, e := range r.Events {
-				f := e["fixed"]
-				if f != "" && version.Compare(f, p.Version) > 0 && (best == "" || version.Compare(f, best) < 0) {
-					best = f
+				switch {
+				case e["introduced"] != "":
+					open = e["introduced"]
+				case e["fixed"] != "":
+					spans = append(spans, interval{open, e["fixed"], false})
+					fixes = append(fixes, e["fixed"])
+					open = ""
+				case e["last_affected"] != "":
+					spans = append(spans, interval{open, e["last_affected"], true})
+					open = ""
 				}
+			}
+			if open != "" {
+				spans = append(spans, interval{open, "", false})
 			}
 		}
 	}
-	return best
+	affected := func(ver string) bool {
+		for _, s := range spans {
+			if s.from != "0" && version.Compare(ver, s.from) < 0 {
+				continue
+			}
+			c := version.Compare(ver, s.to)
+			if s.to == "" || c < 0 || s.inclusive && c == 0 {
+				return true
+			}
+		}
+		return false
+	}
+	slices.SortFunc(fixes, version.Compare)
+	for _, f := range fixes {
+		if version.Compare(f, p.Version) > 0 && !affected(f) {
+			return f
+		}
+	}
+	return ""
 }
 
 func samePkg(eco, a, b string) bool {
