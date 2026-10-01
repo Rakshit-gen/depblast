@@ -29,3 +29,37 @@ func TestNormalizePy(t *testing.T) {
 		}
 	}
 }
+
+func TestParsePoetry(t *testing.T) {
+	lock, _ := os.Open("testdata/poetry.lock")
+	defer lock.Close()
+	manifest, _ := os.Open("testdata/pyproject.toml")
+	defer manifest.Close()
+	g, err := ParsePoetry("poetry.lock", lock, manifest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	direct := slices.Clone(g.Direct)
+	slices.SortFunc(direct, compare)
+	// werkzeug is asked for directly as well as through flask.
+	want := []Pkg{py("black", "23.11.0"), py("flask", "3.0.0"), py("requests", "2.31.0"), py("werkzeug", "3.0.1")}
+	if !slices.Equal(direct, want) {
+		t.Fatalf("direct %v", direct)
+	}
+	// Werkzeug is written with a capital W in flask's table; python-dotenv
+	// is optional and not locked.
+	if d := g.Deps[py("flask", "3.0.0")]; !slices.Equal(d, []Pkg{py("werkzeug", "3.0.1")}) {
+		t.Fatalf("flask deps %v", d)
+	}
+}
+
+func TestPyprojectNames(t *testing.T) {
+	var p pyproject
+	p.Project.Dependencies = []string{"requests[socks]>=2.31", "Django ~= 4.2", "pywin32; sys_platform == 'win32'"}
+	p.DependencyGroups = map[string][]any{"test": {"pytest>=7", map[string]any{"include-group": "lint"}}}
+	got := p.names()
+	slices.Sort(got)
+	if !slices.Equal(got, []string{"django", "pytest", "pywin32", "requests"}) {
+		t.Fatalf("names %v", got)
+	}
+}

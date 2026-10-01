@@ -1,0 +1,12 @@
+[tool.poetry]
+name = "app"
+version = "0.1.0"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+Flask = "^3.0"
+requests = "^2.31"
+werkzeug = "^3.0"
+
+[tool.poetry.group.dev.dependencies]
+black = "^23.11"
