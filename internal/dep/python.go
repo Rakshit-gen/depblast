@@ -36,11 +36,11 @@ func ParseUv(name string, r io.Reader) (*Graph, error) {
 	}
 	byName := map[string][]Pkg{}
 	for _, p := range lock.Package {
-		n := normalizePy(p.Name)
+		n := NormalizePy(p.Name)
 		byName[n] = append(byName[n], Pkg{PyPI, n, p.Version})
 	}
 	find := func(ref uvRef) (Pkg, error) {
-		for _, p := range byName[normalizePy(ref.Name)] {
+		for _, p := range byName[NormalizePy(ref.Name)] {
 			if ref.Version == "" || p.Version == ref.Version {
 				return p, nil
 			}
@@ -50,7 +50,7 @@ func ParseUv(name string, r io.Reader) (*Graph, error) {
 
 	g := NewGraph(name)
 	for _, p := range lock.Package {
-		from := Pkg{PyPI, normalizePy(p.Name), p.Version}
+		from := Pkg{PyPI, NormalizePy(p.Name), p.Version}
 		if p.Source["editable"] != nil || p.Source["virtual"] != nil || p.Source["directory"] != nil {
 			g.AddDirect(from)
 		}
@@ -74,9 +74,9 @@ func ParseUv(name string, r io.Reader) (*Graph, error) {
 
 var pySeparators = regexp.MustCompile(`[-_.]+`)
 
-// normalizePy applies PEP 503 name normalization, so Typing_Extensions
+// NormalizePy applies PEP 503 name normalization, so Typing_Extensions
 // and typing-extensions are the same package.
-func normalizePy(name string) string {
+func NormalizePy(name string) string {
 	return pySeparators.ReplaceAllString(strings.ToLower(name), "-")
 }
 
@@ -113,7 +113,7 @@ func (p pyproject) names() []string {
 	var out []string
 	add := func(spec string) {
 		if m := pep508Name.FindStringSubmatch(spec); m != nil {
-			out = append(out, normalizePy(m[1]))
+			out = append(out, NormalizePy(m[1]))
 		}
 	}
 	for _, s := range p.Project.Dependencies {
@@ -156,18 +156,18 @@ func ParsePoetry(name string, lock io.Reader, manifest io.Reader) (*Graph, error
 	}
 	byName := map[string]Pkg{}
 	for _, p := range l.Package {
-		n := normalizePy(p.Name)
+		n := NormalizePy(p.Name)
 		byName[n] = Pkg{PyPI, n, p.Version}
 	}
 	g := NewGraph(name)
 	used := map[Pkg]bool{}
 	for _, p := range l.Package {
-		from := byName[normalizePy(p.Name)]
+		from := byName[NormalizePy(p.Name)]
 		g.touch(from)
 		for dep := range p.Dependencies {
 			// Optional dependencies whose extra wasn't requested are
 			// not in the lockfile; skip them.
-			if to, ok := byName[normalizePy(dep)]; ok {
+			if to, ok := byName[NormalizePy(dep)]; ok {
 				g.Add(from, to)
 				used[to] = true
 			}

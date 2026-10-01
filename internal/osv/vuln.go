@@ -8,6 +8,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/Rakshit-gen/depblast/internal/dep"
+	"github.com/Rakshit-gen/depblast/internal/version"
 )
 
 // Vuln is the part of an OSV record depblast shows.
@@ -22,6 +25,7 @@ type Vuln struct {
 			Ecosystem string `json:"ecosystem"`
 		} `json:"package"`
 		Ranges []struct {
+			Type   string              `json:"type"`
 			Events []map[string]string `json:"events"`
 		} `json:"ranges"`
 	} `json:"affected"`
@@ -57,4 +61,35 @@ func (c *Client) Vuln(ctx context.Context, ref Ref, cache string) (*Vuln, error)
 		}
 	}
 	return &v, nil
+}
+
+// FixedIn returns the oldest version newer than p.Version that the record
+// says fixes p's package, or "" when no fix is listed. Git commit ranges
+// are skipped, since they name commits rather than versions.
+func (v *Vuln) FixedIn(p dep.Pkg) string {
+	best := ""
+	for _, a := range v.Affected {
+		if a.Package.Ecosystem != p.Eco || !samePkg(p.Eco, a.Package.Name, p.Name) {
+			continue
+		}
+		for _, r := range a.Ranges {
+			if r.Type == "GIT" {
+				continue
+			}
+			for _, e := range r.Events {
+				f := e["fixed"]
+				if f != "" && version.Compare(f, p.Version) > 0 && (best == "" || version.Compare(f, best) < 0) {
+					best = f
+				}
+			}
+		}
+	}
+	return best
+}
+
+func samePkg(eco, a, b string) bool {
+	if eco == dep.PyPI {
+		return dep.NormalizePy(a) == dep.NormalizePy(b)
+	}
+	return a == b
 }

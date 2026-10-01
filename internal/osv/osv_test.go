@@ -71,3 +71,27 @@ func TestVulnCache(t *testing.T) {
 		t.Fatalf("stale record not refetched")
 	}
 }
+
+func TestFixedIn(t *testing.T) {
+	var v Vuln
+	json.Unmarshal([]byte(`{"affected":[
+		{"package":{"name":"lodash","ecosystem":"npm"},"ranges":[{"type":"SEMVER","events":[{"introduced":"0"},{"fixed":"4.17.21"}]}]},
+		{"package":{"name":"lodash","ecosystem":"npm"},"ranges":[{"type":"SEMVER","events":[{"introduced":"3.0.0"},{"fixed":"3.10.2"}]}]},
+		{"package":{"name":"lodash","ecosystem":"npm"},"ranges":[{"type":"GIT","events":[{"introduced":"0"},{"fixed":"abc123"}]}]},
+		{"package":{"name":"Django","ecosystem":"PyPI"},"ranges":[{"type":"ECOSYSTEM","events":[{"introduced":"4.2"},{"fixed":"4.2.7"}]}]}
+	]}`), &v)
+	for _, c := range []struct {
+		p    dep.Pkg
+		want string
+	}{
+		{dep.Pkg{Eco: dep.Npm, Name: "lodash", Version: "4.17.20"}, "4.17.21"},
+		{dep.Pkg{Eco: dep.Npm, Name: "lodash", Version: "3.5.0"}, "3.10.2"},
+		{dep.Pkg{Eco: dep.Npm, Name: "lodash", Version: "4.17.21"}, ""},
+		{dep.Pkg{Eco: dep.PyPI, Name: "django", Version: "4.2.1"}, "4.2.7"},
+		{dep.Pkg{Eco: dep.Cargo, Name: "lodash", Version: "1.0.0"}, ""},
+	} {
+		if got := v.FixedIn(c.p); got != c.want {
+			t.Errorf("%v: %q, want %q", c.p, got, c.want)
+		}
+	}
+}

@@ -24,7 +24,7 @@ func TestParseUv(t *testing.T) {
 
 func TestNormalizePy(t *testing.T) {
 	for in, want := range map[string]string{"Typing_Extensions": "typing-extensions", "zope.interface": "zope-interface", "a--b": "a-b"} {
-		if got := normalizePy(in); got != want {
+		if got := NormalizePy(in); got != want {
 			t.Errorf("%s: %s", in, got)
 		}
 	}
