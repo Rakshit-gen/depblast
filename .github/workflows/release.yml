@@ -1,0 +1,128 @@
+name: Release
+
+# Push a tag like v0.1.0 to build the archives for every platform, publish
+# them as a GitHub release, and then check the one-line install against
+# that release on clean machines.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+env:
+  HYDRA_VERSION: v0.2.0
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-14
+            platform: darwin-arm64
+          - runner: ubuntu-24.04
+            platform: linux-amd64
+          - runner: ubuntu-24.04-arm
+            platform: linux-arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+
+      - name: Fetch HydraDB ${{ env.HYDRA_VERSION }}
+        uses: actions/checkout@v4
+        with:
+          repository: hydra-db/hydradb
+          ref: ${{ env.HYDRA_VERSION }}
+          path: hydradb
+
+      - name: Install HydraDB build dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install suite-sparse cleishm/neo4j/libcypher-parser
+          echo "BINDGEN_EXTRA_CLANG_ARGS=-I$(brew --prefix)/include" >> "$GITHUB_ENV"
+          echo "LIBRARY_PATH=$(brew --prefix)/lib" >> "$GITHUB_ENV"
+
+      - name: Install HydraDB build dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential clang cmake \
+            libclang-dev libcypher-parser-dev libgraphblas-dev pkg-config patchelf
+          command -v cargo || curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            hydradb/target
+          key: hydradb-${{ env.HYDRA_VERSION }}-${{ matrix.platform }}
+
+      - name: Build graph-node
+        working-directory: hydradb
+        run: cargo build --locked --release --features server-runtime --bin graph-node
+
+      - name: Bundle
+        run: scripts/bundle.sh "${GITHUB_REF_NAME}" "$HYDRA_VERSION" hydradb/target/release/graph-node dist
+
+      - name: Smoke test the archive
+        run: |
+          mkdir -p /tmp/smoke && tar -C /tmp/smoke -xzf dist/depblast-${{ matrix.platform }}.tar.gz
+          export DEPBLAST_HOME=/tmp/smoke-home
+          /tmp/smoke/depblast/bin/depblast version
+          /tmp/smoke/depblast/bin/depblast index internal/dep/testdata
+          /tmp/smoke/depblast/bin/depblast hit ms | tee /tmp/hit.txt
+          grep -q "express 4.18.2 > debug 2.6.9 > ms 2.0.0" /tmp/hit.txt
+          /tmp/smoke/depblast/bin/depblast server stop
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: depblast-${{ matrix.platform }}
+          path: dist/*
+
+  release:
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat > notes.md <<NOTES
+          Install or upgrade:
+
+              curl -fsSL https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/install.sh | sh
+
+          Each archive bundles HydraDB ${HYDRA_VERSION}'s graph-node, built unmodified from
+          https://github.com/hydra-db/hydradb/tree/${HYDRA_VERSION} (AGPL-3.0; source at that address).
+          NOTES
+          gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" \
+            --title "$GITHUB_REF_NAME" --notes-file notes.md
+
+  install:
+    needs: release
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [macos-14, ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install with the one-line command
+        run: curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GITHUB_SHA}/install.sh" | DEPBLAST_VERSION="$GITHUB_REF_NAME" sh
+      - name: Use it
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          depblast version
+          depblast index internal/dep/testdata
+          depblast hit 'debug@<3'
+          depblast server stop
