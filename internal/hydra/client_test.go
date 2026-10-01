@@ -67,3 +67,17 @@ func TestValueDecoding(t *testing.T) {
 		t.Fatal("string read as int")
 	}
 }
+
+func TestValuePath(t *testing.T) {
+	// Trimmed from a real algo.SPpaths answer.
+	raw := `{"nodes":[{"id":100,"labels":["Project"],"properties":{"path":{"String":"/x/app"}}},
+		{"id":101,"labels":["Pkg"],"properties":{"name":{"String":"a"},"project":{"Integer":100}}}],
+		"relationships":[{"id":2,"edge_type":"DEPENDS_ON","src":100,"dst":101,"properties":{}}]}`
+	nodes, err := Value{Type: "path", Value: json.RawMessage(raw)}.Path()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(nodes) != 2 || nodes[0].Props["path"] != "/x/app" || nodes[1].Props["project"] != int64(100) || nodes[1].Labels[0] != "Pkg" {
+		t.Fatalf("nodes %+v", nodes)
+	}
+}
