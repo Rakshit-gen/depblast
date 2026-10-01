@@ -22,6 +22,7 @@ var severityRank = map[string]int{"CRITICAL": 0, "HIGH": 1, "MODERATE": 2, "MEDI
 
 func runAudit(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("audit", flag.ExitOnError)
+	asJSON := fs.Bool("json", false, "print the results as JSON")
 	minSev := fs.String("min", "", "only show `severity` and worse: critical, high, moderate or low")
 	fs.Usage = func() {
 		fmt.Fprint(os.Stderr, "usage: depblast audit [flags]\n\n"+
@@ -53,7 +54,9 @@ func runAudit(ctx context.Context, args []string) error {
 		fmt.Println("nothing indexed yet, run: depblast index PATH")
 		return nil
 	}
-	fmt.Fprintf(os.Stderr, "checking %d package versions against OSV.dev...\n", len(pkgs))
+	if !*asJSON {
+		fmt.Fprintf(os.Stderr, "checking %d package versions against OSV.dev...\n", len(pkgs))
+	}
 	o := osv.New()
 	refs, err := o.Affecting(ctx, pkgs)
 	if err != nil {
@@ -98,23 +101,33 @@ func runAudit(ctx context.Context, args []string) error {
 	for _, p := range projects {
 		pathOf[p.ID] = p.Path
 	}
+	type shipJSON struct {
+		Lockfile string    `json:"lockfile"`
+		Path     []pkgJSON `json:"path"` // empty when not reachable
+	}
+	type affectedJSON struct {
+		Package pkgJSON    `json:"package"`
+		FixedIn string     `json:"fixed_in,omitempty"`
+		Shipped []shipJSON `json:"shipped_by"`
+	}
+	type vulnJSON struct {
+		ID       string         `json:"id"`
+		Aliases  []string       `json:"aliases,omitempty"`
+		Severity string         `json:"severity"`
+		Summary  string         `json:"summary"`
+		Affected []affectedJSON `json:"affected"`
+	}
+	out := []vulnJSON{}
 	for _, v := range vulns {
 		sev := v.DatabaseSpecific.Severity
 		if sev == "" {
 			sev = "UNRATED"
 		}
-		fmt.Printf("\n%s  %s  %s\n", sev, v.ID, v.Summary)
-		if len(v.Aliases) > 0 {
-			fmt.Printf("  also known as %s\n", strings.Join(v.Aliases, ", "))
-		}
+		vj := vulnJSON{ID: v.ID, Aliases: v.Aliases, Severity: sev, Summary: v.Summary}
 		affected := byVuln[v.ID]
 		slices.SortFunc(affected, compareVersionsOf)
 		for _, p := range affected {
-			fix := "no fixed version listed"
-			if f := v.FixedIn(p); f != "" {
-				fix = "fixed in " + f
-			}
-			fmt.Printf("  %s %s, %s\n", p.Name, p.Version, fix)
+			aj := affectedJSON{Package: toJSON(p), FixedIn: v.FixedIn(p), Shipped: []shipJSON{}}
 			copies, err := store.Copies(ctx, c, p.Name)
 			if err != nil {
 				return err
@@ -127,22 +140,51 @@ func runAudit(ctx context.Context, args []string) error {
 				if err != nil {
 					return err
 				}
-				how := "not reachable from the project"
+				sj := shipJSON{Lockfile: pathOf[cp.Project], Path: []pkgJSON{}}
 				if len(chains) > 0 {
-					how = formatChain(chains[0])
+					sj.Path = chainJSON(chains[0])
 				}
-				fmt.Printf("    %s: %s\n", rel(pathOf[cp.Project]), how)
+				aj.Shipped = append(aj.Shipped, sj)
+			}
+			vj.Affected = append(vj.Affected, aj)
+		}
+		out = append(out, vj)
+	}
+
+	if *asJSON {
+		if err := printJSON(out); err != nil {
+			return err
+		}
+	} else {
+		for _, v := range out {
+			fmt.Printf("\n%s  %s  %s\n", v.Severity, v.ID, v.Summary)
+			if len(v.Aliases) > 0 {
+				fmt.Printf("  also known as %s\n", strings.Join(v.Aliases, ", "))
+			}
+			for _, a := range v.Affected {
+				fix := "no fixed version listed"
+				if a.FixedIn != "" {
+					fix = "fixed in " + a.FixedIn
+				}
+				fmt.Printf("  %s %s, %s\n", a.Package.Name, a.Package.Version, fix)
+				for _, sh := range a.Shipped {
+					how := "not reachable from the project"
+					if len(sh.Path) > 0 {
+						how = formatChainJSON(sh.Path)
+					}
+					fmt.Printf("    %s: %s\n", rel(sh.Lockfile), how)
+				}
 			}
 		}
+		what := "known vulnerabilities"
+		switch {
+		case limit == 0:
+			what = "critical vulnerabilities"
+		case *minSev != "":
+			what = strings.ToLower(*minSev) + " or worse vulnerabilities"
+		}
+		fmt.Printf("\n%d %s in %d indexed projects\n", len(vulns), what, len(projects))
 	}
-	what := "known vulnerabilities"
-	switch {
-	case limit == 0:
-		what = "critical vulnerabilities"
-	case *minSev != "":
-		what = strings.ToLower(*minSev) + " or worse vulnerabilities"
-	}
-	fmt.Printf("\n%d %s in %d indexed projects\n", len(vulns), what, len(projects))
 	if len(vulns) > 0 {
 		return exitCode(3)
 	}

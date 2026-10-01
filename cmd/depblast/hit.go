@@ -132,10 +132,4 @@ func splitSpec(s string) (name, versions string) {
 	return s, ""
 }
 
-func formatChain(chain []dep.Pkg) string {
-	parts := make([]string, len(chain))
-	for i, p := range chain {
-		parts[i] = p.Name + " " + p.Version
-	}
-	return strings.Join(parts, " > ")
-}
+func formatChain(chain []dep.Pkg) string { return formatChainJSON(chainJSON(chain)) }

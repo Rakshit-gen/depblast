@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/Rakshit-gen/depblast/internal/dep"
 )
@@ -35,4 +36,12 @@ func plural(n int, one, many string) string {
 		return fmt.Sprintf("1 %s", one)
 	}
 	return fmt.Sprintf("%d %s", n, many)
+}
+
+func formatChainJSON(chain []pkgJSON) string {
+	parts := make([]string, len(chain))
+	for i, p := range chain {
+		parts[i] = p.Name + " " + p.Version
+	}
+	return strings.Join(parts, " > ")
 }
