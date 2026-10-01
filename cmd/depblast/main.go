@@ -21,6 +21,7 @@ Usage:
   depblast projects                list the indexed lockfiles, marking changed and missing ones
   depblast forget PATH...          remove indexed lockfiles at or under PATH (-missing: all deleted ones)
   depblast server status|stop|log  manage the background HydraDB depblast runs
+  depblast version                 print depblast's version and the bundled HydraDB's
 
 Supported lockfiles: package-lock.json, npm-shrinkwrap.json, yarn.lock (v1),
 pnpm-lock.yaml (v6, v9), Cargo.lock, go.mod (needs Go installed), uv.lock,
@@ -32,9 +33,19 @@ Environment:
   DEPBLAST_HYDRA_TOKEN  bearer token for DEPBLAST_HYDRA_URL
 `
 
+// Set at release build time with -ldflags "-X main.buildVersion=... -X main.hydraVersion=...".
+var (
+	buildVersion = "dev"
+	hydraVersion = "unknown"
+)
+
 func main() {
 	if len(os.Args) < 2 || os.Args[1] == "-h" || os.Args[1] == "--help" || os.Args[1] == "help" {
 		fmt.Print(usage)
+		return
+	}
+	if os.Args[1] == "version" || os.Args[1] == "--version" {
+		fmt.Printf("depblast %s, bundled HydraDB %s\n", buildVersion, hydraVersion)
 		return
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
