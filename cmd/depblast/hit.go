@@ -17,6 +17,7 @@ import (
 func runHit(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("hit", flag.ExitOnError)
 	paths := fs.Int("paths", 1, "how many dependency chains to show per project, shortest first")
+	asJSON := fs.Bool("json", false, "print the results as JSON")
 	fs.Usage = func() {
 		fmt.Fprint(os.Stderr, "usage: depblast hit [flags] NAME[@VERSIONS]\n\n"+
 			"Lists the indexed projects that lock a version of NAME, with the chain of\n"+
@@ -61,6 +62,9 @@ func runHit(ctx context.Context, args []string) error {
 	}
 	copies = slices.DeleteFunc(copies, func(cp store.Copy) bool { return !rng.Match(cp.Pkg.Version) })
 	if len(copies) == 0 {
+		if *asJSON {
+			return printJSON([]any{})
+		}
 		fmt.Printf("no indexed project locks %s\n", fs.Arg(0))
 		return nil
 	}
@@ -79,15 +83,31 @@ func runHit(ctx context.Context, args []string) error {
 		return version.Compare(a.Pkg.Version, b.Pkg.Version)
 	})
 
+	type hitJSON struct {
+		Lockfile string      `json:"lockfile"`
+		Package  pkgJSON     `json:"package"`
+		Paths    [][]pkgJSON `json:"paths"`
+	}
+	var out []hitJSON
 	nProjects := 0
 	for i, cp := range copies {
 		if i == 0 || cp.Project != copies[i-1].Project {
 			nProjects++
-			fmt.Printf("\n%s\n", rel(pathOf[cp.Project]))
+			if !*asJSON {
+				fmt.Printf("\n%s\n", rel(pathOf[cp.Project]))
+			}
 		}
 		chains, err := store.Paths(ctx, c, cp.Project, cp.ID, *paths)
 		if err != nil {
 			return err
+		}
+		if *asJSON {
+			h := hitJSON{Lockfile: pathOf[cp.Project], Package: toJSON(cp.Pkg), Paths: [][]pkgJSON{}}
+			for _, chain := range chains {
+				h.Paths = append(h.Paths, chainJSON(chain))
+			}
+			out = append(out, h)
+			continue
 		}
 		if len(chains) == 0 {
 			fmt.Printf("  %s (locked, but not reachable within %d links of the project)\n", cp.Pkg, store.MaxDepth)
@@ -96,7 +116,10 @@ func runHit(ctx context.Context, args []string) error {
 			fmt.Printf("  %s\n", formatChain(chain))
 		}
 	}
-	fmt.Printf("\n%d copies of %s in %d of %d projects\n", len(copies), name, nProjects, len(projects))
+	if *asJSON {
+		return printJSON(out)
+	}
+	fmt.Printf("\n%s of %s in %d of %d projects\n", plural(len(copies), "copy", "copies"), name, nProjects, len(projects))
 	return nil
 }
 
