@@ -73,9 +73,9 @@ func runIndex(ctx context.Context, args []string) error {
 		fmt.Fprintf(w, "%s\t%d packages\n", rel(f), len(graphs[i].Deps))
 	}
 	w.Flush()
-	fmt.Printf("indexed %d lockfiles, %d packages in %.1fs\n", len(files)-failed, pkgs, time.Since(start).Seconds())
+	fmt.Printf("indexed %s, %s in %.1fs\n", plural(len(files)-failed, "lockfile", "lockfiles"), plural(pkgs, "package", "packages"), time.Since(start).Seconds())
 	if failed > 0 {
-		return fmt.Errorf("%d lockfiles could not be read", failed)
+		return fmt.Errorf("%s could not be read", plural(failed, "lockfile", "lockfiles"))
 	}
 	return nil
 }
