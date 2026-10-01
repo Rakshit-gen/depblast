@@ -44,6 +44,13 @@ func Connect(ctx context.Context) (*hydra.Client, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Two commands starting at once must not both launch a server on the
+	// same data folder, so the check and the start happen under a lock.
+	unlock, err := lock(home)
+	if err != nil {
+		return nil, err
+	}
+	defer unlock()
 	st, ok := Running(home)
 	if !ok {
 		if st, err = start(ctx, home); err != nil {
@@ -169,6 +176,21 @@ func Stop(home string) (bool, error) {
 		return true, err
 	}
 	return true, nil
+}
+
+func lock(home string) (func(), error) {
+	if err := os.MkdirAll(home, 0o700); err != nil {
+		return nil, err
+	}
+	f, err := os.OpenFile(filepath.Join(home, "server.lock"), os.O_CREATE|os.O_RDWR, 0o600)
+	if err != nil {
+		return nil, err
+	}
+	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX); err != nil {
+		f.Close()
+		return nil, err
+	}
+	return func() { f.Close() }, nil
 }
 
 func freePorts(n int) ([]string, error) {
