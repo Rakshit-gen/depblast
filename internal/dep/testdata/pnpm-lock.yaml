@@ -1,0 +1,66 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    dependencies:
+      express:
+        specifier: ^4.18.0
+        version: 4.18.2
+      '@acme/util':
+        specifier: workspace:*
+        version: link:packages/util
+    devDependencies:
+      strip-ansi-cjs:
+        specifier: npm:strip-ansi@^6.0.1
+        version: strip-ansi@6.0.1
+
+  packages/util:
+    dependencies:
+      debug:
+        specifier: ^4.1.0
+        version: 4.3.4(supports-color@8.0.0)
+
+packages:
+
+  express@4.18.2:
+    resolution: {integrity: sha512-x}
+
+  debug@2.6.9:
+    resolution: {integrity: sha512-x}
+
+  debug@4.3.4:
+    resolution: {integrity: sha512-x}
+
+  ms@2.1.2:
+    resolution: {integrity: sha512-x}
+
+  strip-ansi@6.0.1:
+    resolution: {integrity: sha512-x}
+
+  supports-color@8.0.0:
+    resolution: {integrity: sha512-x}
+
+snapshots:
+
+  express@4.18.2:
+    dependencies:
+      debug: 2.6.9
+
+  debug@2.6.9: {}
+
+  debug@4.3.4(supports-color@8.0.0):
+    dependencies:
+      ms: 2.1.2
+    optionalDependencies:
+      supports-color: 8.0.0
+
+  ms@2.1.2: {}
+
+  strip-ansi@6.0.1: {}
+
+  supports-color@8.0.0: {}
