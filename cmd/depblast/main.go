@@ -15,6 +15,7 @@ const usage = `depblast finds which of your projects ship a package version, and
 
 Usage:
   depblast index PATH...        read the lockfiles under PATH and store their dependency graphs
+  depblast hit NAME[@VERSIONS]  list the projects that lock NAME, and the chain that pulls it in
 
 Supported lockfiles: package-lock.json, npm-shrinkwrap.json, yarn.lock (v1),
 pnpm-lock.yaml (v6, v9), Cargo.lock, go.mod (needs Go installed), uv.lock,
@@ -35,6 +36,7 @@ func main() {
 	defer stop()
 	commands := map[string]func(context.Context, []string) error{
 		"index": runIndex,
+		"hit":   runHit,
 	}
 	run, ok := commands[os.Args[1]]
 	if !ok {
