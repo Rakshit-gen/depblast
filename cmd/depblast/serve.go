@@ -8,9 +8,10 @@ import (
 	"path/filepath"
 
 	"github.com/Rakshit-gen/depblast/internal/server"
+	"github.com/Rakshit-gen/depblast/internal/store"
 )
 
-const serverUsage = `usage: depblast server status|stop|log
+const serverUsage = `usage: depblast server status|stop|log|rebuild
 
 depblast starts its own HydraDB in the background the first time a command
 needs it, and leaves it running so later commands are quick.
@@ -18,6 +19,11 @@ needs it, and leaves it running so later commands are quick.
   status  say whether it is running, where, and how much data it holds
   stop    shut it down (the next command starts it again)
   log     print its log file
+  rebuild delete the data folder and index every known lockfile again
+
+HydraDB v0.2 does not reclaim space from replaced data, so the data folder
+grows each time a changed lockfile is indexed. rebuild shrinks it back.
+Lockfiles that no longer exist are dropped.
 `
 
 func runServer(ctx context.Context, args []string) error {
@@ -57,10 +63,46 @@ func runServer(ctx context.Context, args []string) error {
 			return err
 		}
 		os.Stdout.Write(b)
+	case "rebuild":
+		return rebuild(ctx, home)
 	default:
 		fmt.Fprint(os.Stderr, serverUsage)
 		os.Exit(2)
 	}
+	return nil
+}
+
+func rebuild(ctx context.Context, home string) error {
+	c, err := server.Connect(ctx)
+	if err != nil {
+		return err
+	}
+	projects, err := store.Projects(ctx, c)
+	if err != nil {
+		return err
+	}
+	var paths []string
+	for _, p := range projects {
+		if _, err := os.Stat(p.Path); err != nil {
+			fmt.Printf("dropping %s: %v\n", rel(p.Path), err)
+			continue
+		}
+		paths = append(paths, p.Path)
+	}
+	data := filepath.Join(home, "data")
+	before := dirSize(data)
+	if _, err := server.Stop(home); err != nil {
+		return err
+	}
+	if err := os.RemoveAll(data); err != nil {
+		return err
+	}
+	if len(paths) > 0 {
+		if err := runIndex(ctx, paths); err != nil {
+			return err
+		}
+	}
+	fmt.Printf("data folder: %s before, %s now\n", humanSize(before), humanSize(dirSize(data)))
 	return nil
 }
 
