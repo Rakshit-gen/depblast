@@ -22,14 +22,24 @@ var severityRank = map[string]int{"CRITICAL": 0, "HIGH": 1, "MODERATE": 2, "MEDI
 
 func runAudit(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("audit", flag.ExitOnError)
+	minSev := fs.String("min", "", "only show `severity` and worse: critical, high, moderate or low")
 	fs.Usage = func() {
-		fmt.Fprint(os.Stderr, "usage: depblast audit\n\n"+
+		fmt.Fprint(os.Stderr, "usage: depblast audit [flags]\n\n"+
 			"Checks every package version in the indexed projects against OSV.dev and lists\n"+
 			"the known vulnerabilities, worst first, with the projects that ship each one\n"+
 			"and the chain that pulls it in. Only package names, ecosystems and versions are\n"+
-			"sent to OSV.dev.\n")
+			"sent to OSV.dev. Advisories without a severity are shown unless -min is set.\n\n")
+		fs.PrintDefaults()
 	}
 	fs.Parse(args)
+	limit := len(severityRank)
+	if *minSev != "" {
+		r, ok := severityRank[strings.ToUpper(*minSev)]
+		if !ok {
+			return fmt.Errorf("-min %q: use critical, high, moderate or low", *minSev)
+		}
+		limit = r
+	}
 	c, err := server.Connect(ctx)
 	if err != nil {
 		return err
@@ -62,6 +72,7 @@ func runAudit(ctx context.Context, args []string) error {
 	}
 	// Merged records keep the affected packages of every id they absorbed.
 	vulns = osv.Dedupe(vulns)
+	vulns = slices.DeleteFunc(vulns, func(v *osv.Vuln) bool { return rank(v) > limit })
 	for _, v := range vulns {
 		for _, a := range v.Aliases {
 			for _, p := range byVuln[a] {
@@ -123,7 +134,14 @@ func runAudit(ctx context.Context, args []string) error {
 			}
 		}
 	}
-	fmt.Printf("\n%d known vulnerabilities in %d indexed projects\n", len(vulns), len(projects))
+	what := "known vulnerabilities"
+	switch {
+	case limit == 0:
+		what = "critical vulnerabilities"
+	case *minSev != "":
+		what = strings.ToLower(*minSev) + " or worse vulnerabilities"
+	}
+	fmt.Printf("\n%d %s in %d indexed projects\n", len(vulns), what, len(projects))
 	return nil
 }
 
