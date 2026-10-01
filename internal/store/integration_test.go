@@ -42,6 +42,20 @@ func TestAgainstRealHydraDB(t *testing.T) {
 		defer Remove(ctx, c, g.Lockfile)
 	}
 
+	all, err := Distinct(ctx, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mine := 0
+	for _, p := range all {
+		if slices.Contains([]dep.Pkg{a, b, cc, d, e, target}, p) {
+			mine++
+		}
+	}
+	if mine != 6 {
+		t.Fatalf("Distinct found %d of this run's 6 packages", mine)
+	}
+
 	copies, err := Copies(ctx, c, target.Name)
 	if err != nil {
 		t.Fatal(err)

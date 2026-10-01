@@ -107,3 +107,23 @@ func firstErr(errs ...error) error {
 	}
 	return nil
 }
+
+// Distinct lists every package version locked by at least one project,
+// once each.
+func Distinct(ctx context.Context, c *hydra.Client) ([]dep.Pkg, error) {
+	res, err := c.Query(ctx, `MATCH (v:Pkg) RETURN DISTINCT v.eco AS eco, v.name AS name, v.version AS version`, nil)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]dep.Pkg, 0, len(res.Rows))
+	for _, r := range res.Rows {
+		eco, err1 := r[0].String()
+		name, err2 := r[1].String()
+		version, err3 := r[2].String()
+		if err := firstErr(err1, err2, err3); err != nil {
+			return nil, err
+		}
+		out = append(out, dep.Pkg{Eco: eco, Name: name, Version: version})
+	}
+	return out, nil
+}
