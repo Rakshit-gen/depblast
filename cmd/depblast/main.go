@@ -16,6 +16,7 @@ const usage = `depblast finds which of your projects ship a package version, and
 Usage:
   depblast index PATH...           read the lockfiles under PATH and store their dependency graphs
   depblast hit NAME[@VERSIONS]     list the projects that lock NAME, and the chain that pulls it in
+  depblast audit                   check every indexed package version against OSV.dev
   depblast projects                list the indexed lockfiles, marking changed and missing ones
   depblast forget PATH...          remove indexed lockfiles at or under PATH (-missing: all deleted ones)
   depblast server status|stop|log  manage the background HydraDB depblast runs
@@ -40,6 +41,7 @@ func main() {
 	commands := map[string]func(context.Context, []string) error{
 		"index":    runIndex,
 		"hit":      runHit,
+		"audit":    runAudit,
 		"projects": runProjects,
 		"forget":   runForget,
 		"server":   runServer,
