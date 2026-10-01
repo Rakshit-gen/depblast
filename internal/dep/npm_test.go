@@ -61,3 +61,18 @@ func TestParseNpmFollowsWorkspaceLinks(t *testing.T) {
 		t.Fatalf("util deps %v", d)
 	}
 }
+
+func TestParseNpmVersion1(t *testing.T) {
+	g := parseFile(t, func(n string, f *os.File) (*Graph, error) { return ParseNpm(n, f) }, "testdata/v1-lock.json")
+	direct := slices.Clone(g.Direct)
+	slices.SortFunc(direct, compare)
+	// debug and ms are used by other packages, and express has its own qs,
+	// so these two are taken as the project's own.
+	if !slices.Equal(direct, []Pkg{npm("express", "4.16.0"), npm("qs", "6.11.0")}) {
+		t.Fatalf("direct %v", direct)
+	}
+	// express gets its own nested qs, not the top level one.
+	if d := g.Deps[npm("express", "4.16.0")]; !slices.Equal(d, []Pkg{npm("debug", "2.6.9"), npm("qs", "6.5.1")}) {
+		t.Fatalf("express deps %v", d)
+	}
+}

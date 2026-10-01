@@ -12,6 +12,14 @@ import (
 type npmLock struct {
 	LockfileVersion int                   `json:"lockfileVersion"`
 	Packages        map[string]npmPackage `json:"packages"`
+	Dependencies    map[string]npmV1Entry `json:"dependencies"`
+}
+
+// npmV1Entry is the nested tree npm 5 and 6 wrote (lockfile version 1).
+type npmV1Entry struct {
+	Version      string                `json:"version"`
+	Requires     map[string]string     `json:"requires"`
+	Dependencies map[string]npmV1Entry `json:"dependencies"`
 }
 
 type npmPackage struct {
@@ -36,7 +44,10 @@ func ParseNpm(name string, r io.Reader) (*Graph, error) {
 		return nil, fmt.Errorf("%s: %w", name, err)
 	}
 	if lock.Packages == nil {
-		return nil, fmt.Errorf("%s: lockfile version %d has no \"packages\" section", name, lock.LockfileVersion)
+		if lock.Dependencies == nil {
+			return nil, fmt.Errorf("%s: no \"packages\" or \"dependencies\" section", name)
+		}
+		lock.Packages = flattenV1(lock.Dependencies)
 	}
 	g := NewGraph(name)
 	pkgAt := func(loc string) (Pkg, bool) {
@@ -112,4 +123,37 @@ func resolveNpm(pkgs map[string]npmPackage, loc, dep string) string {
 		}
 		loc = strings.TrimSuffix(loc[:i], "/")
 	}
+}
+
+// flattenV1 turns a version 1 tree into the location map later versions
+// use. Version 1 does not record what the project itself asked for, so the
+// root's dependencies are approximated as the top level packages no other
+// package resolves to. A package the project uses directly that is also pulled
+// in by another one is then only reachable through that other package,
+// which still says correctly that the project ships it.
+func flattenV1(deps map[string]npmV1Entry) map[string]npmPackage {
+	pkgs := map[string]npmPackage{}
+	var walk func(prefix string, deps map[string]npmV1Entry)
+	walk = func(prefix string, deps map[string]npmV1Entry) {
+		for name, e := range deps {
+			loc := prefix + "node_modules/" + name
+			pkgs[loc] = npmPackage{Version: e.Version, Dependencies: e.Requires}
+			walk(loc+"/", e.Dependencies)
+		}
+	}
+	walk("", deps)
+	used := map[string]bool{}
+	for loc, p := range pkgs {
+		for dep := range p.Dependencies {
+			used[resolveNpm(pkgs, loc, dep)] = true
+		}
+	}
+	root := map[string]string{}
+	for name, e := range deps {
+		if !used["node_modules/"+name] {
+			root[name] = e.Version
+		}
+	}
+	pkgs[""] = npmPackage{Dependencies: root}
+	return pkgs
 }
