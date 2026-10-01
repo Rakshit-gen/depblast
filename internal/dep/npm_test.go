@@ -57,7 +57,8 @@ func TestParseNpmFollowsWorkspaceLinks(t *testing.T) {
 	if d := g.Deps[web]; !slices.Equal(d, []Pkg{util, npm("react", "18.2.0")}) {
 		t.Fatalf("web deps %v", d)
 	}
-	if d := g.Deps[util]; !slices.Equal(d, []Pkg{npm("lodash", "4.17.20")}) {
+	// npm installs a workspace's dev dependencies too.
+	if d := g.Deps[util]; !slices.Equal(d, []Pkg{npm("lodash", "4.17.20"), npm("tap", "16.3.0")}) {
 		t.Fatalf("util deps %v", d)
 	}
 }

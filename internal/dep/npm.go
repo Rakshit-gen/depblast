@@ -76,13 +76,16 @@ func ParseNpm(name string, r io.Reader) (*Graph, error) {
 		if loc != "" && !isPkg || p.Link {
 			continue
 		}
-		if loc != "" && !strings.Contains(loc, "node_modules/") {
+		inProject := !strings.Contains(loc, "node_modules/")
+		if loc != "" && inProject {
 			// A workspace package's own folder. It is part of the
 			// project, so it counts as a direct dependency.
 			g.AddDirect(from)
 		}
 		wants := []map[string]string{p.Dependencies, p.OptionalDependencies, p.PeerDependencies}
-		if loc == "" {
+		if inProject {
+			// npm installs dev dependencies of the root and of every
+			// workspace, but not of packages from the registry.
 			wants = append(wants, p.DevDependencies)
 		}
 		for _, want := range wants {
