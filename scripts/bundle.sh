@@ -6,13 +6,15 @@
 #   scripts/bundle.sh VERSION HYDRA_VERSION GRAPH_NODE OUT_DIR
 #
 # Builds depblast for the current OS and CPU and writes
-# OUT_DIR/depblast-VERSION-OS-ARCH.tar.gz. Needs install_name_tool and
+# OUT_DIR/depblast-OS-ARCH.tar.gz. The name has no version, so
+# https://github.com/.../releases/latest/download/depblast-OS-ARCH.tar.gz
+# always fetches the newest release. Needs install_name_tool and
 # codesign on macOS, patchelf on Linux.
 set -euo pipefail
 
 version=$1 hydra_version=$2 graph_node=$3 out=$4
 os=$(go env GOOS) arch=$(go env GOARCH)
-name=depblast-$version-$os-$arch
+name=depblast-$os-$arch
 stage=$(mktemp -d)/depblast
 mkdir -p "$stage/bin" "$stage/libexec" "$stage/lib" "$out"
 
