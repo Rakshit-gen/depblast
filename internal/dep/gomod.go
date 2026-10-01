@@ -2,8 +2,13 @@ package dep
 
 import (
 	"bufio"
+	"bytes"
+	"context"
 	"fmt"
 	"io"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 )
 
@@ -62,4 +67,36 @@ func ParseGoGraph(name string, modGraph, listAll io.Reader) (*Graph, error) {
 		}
 	}
 	return g, sc.Err()
+}
+
+// GoGraph runs the go tool in the module folder holding gomodPath. It
+// needs Go installed, and it may download the go.mod files of
+// dependencies that aren't in the module cache yet.
+func GoGraph(ctx context.Context, gomodPath string) (*Graph, error) {
+	if _, err := exec.LookPath("go"); err != nil {
+		return nil, fmt.Errorf("%s: reading Go modules needs the go command, which is not on PATH", gomodPath)
+	}
+	dir := filepath.Dir(gomodPath)
+	run := func(args ...string) ([]byte, error) {
+		cmd := exec.CommandContext(ctx, "go", args...)
+		cmd.Dir = dir
+		// Vendored or not, read the module graph rather than vendor/.
+		cmd.Env = append(os.Environ(), "GOFLAGS=-mod=mod")
+		var stderr bytes.Buffer
+		cmd.Stderr = &stderr
+		out, err := cmd.Output()
+		if err != nil {
+			return nil, fmt.Errorf("%s: go %s: %v: %s", gomodPath, strings.Join(args, " "), err, strings.TrimSpace(stderr.String()))
+		}
+		return out, nil
+	}
+	graph, err := run("mod", "graph")
+	if err != nil {
+		return nil, err
+	}
+	list, err := run("list", "-m", "all")
+	if err != nil {
+		return nil, err
+	}
+	return ParseGoGraph(gomodPath, bytes.NewReader(graph), bytes.NewReader(list))
 }

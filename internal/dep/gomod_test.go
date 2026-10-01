@@ -44,3 +44,19 @@ golang.org/x/text v0.13.0
 		t.Fatalf("packages %v", g.Packages())
 	}
 }
+
+// Runs the real go tool on this repository, whose dependencies are in the
+// module cache after any build.
+func TestGoGraphOnThisModule(t *testing.T) {
+	g, err := GoGraph(t.Context(), "../../go.mod")
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, p := range g.Direct {
+		found = found || p.Name == "github.com/BurntSushi/toml"
+	}
+	if !found {
+		t.Fatalf("direct %v", g.Direct)
+	}
+}
