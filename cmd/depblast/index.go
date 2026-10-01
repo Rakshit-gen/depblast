@@ -70,7 +70,7 @@ func runIndex(ctx context.Context, args []string) error {
 			return fmt.Errorf("storing %s: %w", rel(f), err)
 		}
 		pkgs += len(graphs[i].Deps)
-		fmt.Fprintf(w, "%s\t%d packages\t\n", rel(f), len(graphs[i].Deps))
+		fmt.Fprintf(w, "%s\t%d packages\n", rel(f), len(graphs[i].Deps))
 	}
 	w.Flush()
 	fmt.Printf("indexed %d lockfiles, %d packages in %.1fs\n", len(files)-failed, pkgs, time.Since(start).Seconds())

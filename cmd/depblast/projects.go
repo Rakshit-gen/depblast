@@ -42,7 +42,7 @@ func runProjects(ctx context.Context, args []string) error {
 		} else if st.ModTime().After(p.Indexed) {
 			note = "  changed"
 		}
-		fmt.Fprintf(w, "%s\t%d packages\tindexed %s%s\t\n", rel(p.Path), p.Packages, ago(p.Indexed), note)
+		fmt.Fprintf(w, "%s\t%d packages\tindexed %s%s\n", rel(p.Path), p.Packages, ago(p.Indexed), note)
 	}
 	return nil
 }

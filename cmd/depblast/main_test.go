@@ -15,3 +15,17 @@ func TestSplitSpec(t *testing.T) {
 		}
 	}
 }
+
+func TestUnder(t *testing.T) {
+	roots := []string{"/code/web"}
+	for path, want := range map[string]bool{
+		"/code/web":                       true,
+		"/code/web/package-lock.json":     true,
+		"/code/website/package-lock.json": false,
+		"/code/api/Cargo.lock":            false,
+	} {
+		if under(path, roots) != want {
+			t.Errorf("%s: want %v", path, want)
+		}
+	}
+}

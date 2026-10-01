@@ -17,6 +17,7 @@ Usage:
   depblast index PATH...        read the lockfiles under PATH and store their dependency graphs
   depblast hit NAME[@VERSIONS]  list the projects that lock NAME, and the chain that pulls it in
   depblast projects             list the indexed lockfiles, marking changed and missing ones
+  depblast forget PATH...       remove indexed lockfiles at or under PATH (-missing: all deleted ones)
 
 Supported lockfiles: package-lock.json, npm-shrinkwrap.json, yarn.lock (v1),
 pnpm-lock.yaml (v6, v9), Cargo.lock, go.mod (needs Go installed), uv.lock,
@@ -39,6 +40,7 @@ func main() {
 		"index":    runIndex,
 		"hit":      runHit,
 		"projects": runProjects,
+		"forget":   runForget,
 	}
 	run, ok := commands[os.Args[1]]
 	if !ok {
