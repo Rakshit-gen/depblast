@@ -60,6 +60,17 @@ func runAudit(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
+	// Merged records keep the affected packages of every id they absorbed.
+	vulns = osv.Dedupe(vulns)
+	for _, v := range vulns {
+		for _, a := range v.Aliases {
+			for _, p := range byVuln[a] {
+				if !slices.Contains(byVuln[v.ID], p) {
+					byVuln[v.ID] = append(byVuln[v.ID], p)
+				}
+			}
+		}
+	}
 	slices.SortFunc(vulns, func(a, b *osv.Vuln) int {
 		if d := rank(a) - rank(b); d != 0 {
 			return d
@@ -81,6 +92,9 @@ func runAudit(ctx context.Context, args []string) error {
 			sev = "UNRATED"
 		}
 		fmt.Printf("\n%s  %s  %s\n", sev, v.ID, v.Summary)
+		if len(v.Aliases) > 0 {
+			fmt.Printf("  also known as %s\n", strings.Join(v.Aliases, ", "))
+		}
 		affected := byVuln[v.ID]
 		slices.SortFunc(affected, compareVersionsOf)
 		for _, p := range affected {

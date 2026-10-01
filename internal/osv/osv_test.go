@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"testing"
 
 	"github.com/Rakshit-gen/depblast/internal/dep"
@@ -97,5 +98,27 @@ func TestFixedIn(t *testing.T) {
 		if got := v.FixedIn(c.p); got != c.want {
 			t.Errorf("%v: %q, want %q", c.p, got, c.want)
 		}
+	}
+}
+
+func TestDedupe(t *testing.T) {
+	v := func(id, sev string, aliases ...string) *Vuln {
+		x := &Vuln{ID: id, Aliases: aliases}
+		x.DatabaseSpecific.Severity = sev
+		return x
+	}
+	// Two GHSA ids for one lodash issue, linked through a shared CVE, and
+	// an unrelated nanoid issue.
+	got := Dedupe([]*Vuln{
+		v("GHSA-r5fr-rjxr-66jc", "", "CVE-2026-4800"),
+		v("GHSA-35jh-r3h4-6jhm", "HIGH", "CVE-2021-23337", "CVE-2026-4800"),
+		v("GHSA-28wg-ghj8-5hjv", "HIGH"),
+	})
+	if len(got) != 2 {
+		t.Fatalf("kept %d", len(got))
+	}
+	lodash := got[1]
+	if lodash.ID != "GHSA-35jh-r3h4-6jhm" || !slices.Contains(lodash.Aliases, "GHSA-r5fr-rjxr-66jc") {
+		t.Fatalf("lodash kept %s with aliases %v", lodash.ID, lodash.Aliases)
 	}
 }
