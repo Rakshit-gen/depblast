@@ -1,0 +1,21 @@
+{
+  "name": "monorepo",
+  "lockfileVersion": 3,
+  "packages": {
+    "": { "name": "monorepo", "workspaces": ["packages/*"] },
+    "node_modules/@acme/web": { "resolved": "packages/web", "link": true },
+    "node_modules/@acme/util": { "resolved": "packages/util", "link": true },
+    "packages/web": {
+      "name": "@acme/web",
+      "version": "0.3.0",
+      "dependencies": { "@acme/util": "*", "react": "^18.2.0" }
+    },
+    "packages/web/node_modules/react": { "version": "18.2.0" },
+    "packages/util": {
+      "name": "@acme/util",
+      "version": "0.1.0",
+      "dependencies": { "lodash": "^4.17.0" }
+    },
+    "node_modules/lodash": { "version": "4.17.20" }
+  }
+}

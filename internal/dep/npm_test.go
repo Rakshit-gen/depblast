@@ -47,3 +47,17 @@ func TestParseNpmResolvesNestedCopies(t *testing.T) {
 		t.Fatalf("packages %v", g.Packages())
 	}
 }
+
+func TestParseNpmFollowsWorkspaceLinks(t *testing.T) {
+	g := parseFile(t, func(n string, f *os.File) (*Graph, error) { return ParseNpm(n, f) }, "testdata/workspaces-lock.json")
+	web, util := npm("@acme/web", "0.3.0"), npm("@acme/util", "0.1.0")
+	if len(g.Direct) != 2 || !slices.Contains(g.Direct, web) || !slices.Contains(g.Direct, util) {
+		t.Fatalf("direct %v", g.Direct)
+	}
+	if d := g.Deps[web]; !slices.Equal(d, []Pkg{util, npm("react", "18.2.0")}) {
+		t.Fatalf("web deps %v", d)
+	}
+	if d := g.Deps[util]; !slices.Equal(d, []Pkg{npm("lodash", "4.17.20")}) {
+		t.Fatalf("util deps %v", d)
+	}
+}

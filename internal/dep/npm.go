@@ -21,12 +21,15 @@ type npmPackage struct {
 	DevDependencies      map[string]string `json:"devDependencies"`
 	OptionalDependencies map[string]string `json:"optionalDependencies"`
 	PeerDependencies     map[string]string `json:"peerDependencies"`
+	Link                 bool              `json:"link"`
+	Resolved             string            `json:"resolved"`
 }
 
 // ParseNpm reads a package-lock.json (lockfile version 2 or 3) or an
 // npm-shrinkwrap.json. Each "packages" key is an install location like
 // node_modules/a/node_modules/b, and a dependency is resolved the way
 // Node resolves require(): the nearest node_modules folder going up.
+// Workspace packages are counted as direct dependencies of the project.
 func ParseNpm(name string, r io.Reader) (*Graph, error) {
 	var lock npmLock
 	if err := json.NewDecoder(r).Decode(&lock); err != nil {
@@ -38,12 +41,20 @@ func ParseNpm(name string, r io.Reader) (*Graph, error) {
 	g := NewGraph(name)
 	pkgAt := func(loc string) (Pkg, bool) {
 		p, ok := lock.Packages[loc]
+		if ok && p.Link {
+			// A workspace package: node_modules/foo points at packages/foo.
+			loc = p.Resolved
+			p, ok = lock.Packages[loc]
+		}
 		if !ok || loc == "" {
 			return Pkg{}, false
 		}
 		n := p.Name
 		if n == "" {
-			n = loc[strings.LastIndex(loc, "node_modules/")+len("node_modules/"):]
+			n = loc[strings.LastIndex(loc, "/")+1:]
+			if i := strings.LastIndex(loc, "node_modules/"); i >= 0 {
+				n = loc[i+len("node_modules/"):]
+			}
 		}
 		return Pkg{Npm, n, p.Version}, true
 	}
@@ -51,8 +62,13 @@ func ParseNpm(name string, r io.Reader) (*Graph, error) {
 	for _, loc := range slices.Sorted(maps.Keys(lock.Packages)) {
 		p := lock.Packages[loc]
 		from, isPkg := pkgAt(loc)
-		if loc != "" && !isPkg {
+		if loc != "" && !isPkg || p.Link {
 			continue
+		}
+		if loc != "" && !strings.Contains(loc, "node_modules/") {
+			// A workspace package's own folder. It is part of the
+			// project, so it counts as a direct dependency.
+			g.AddDirect(from)
 		}
 		wants := []map[string]string{p.Dependencies, p.OptionalDependencies, p.PeerDependencies}
 		if loc == "" {
@@ -90,6 +106,10 @@ func resolveNpm(pkgs map[string]npmPackage, loc, dep string) string {
 			return ""
 		}
 		i := strings.LastIndex(loc, "node_modules/")
+		if i < 0 {
+			loc = "" // a workspace folder like packages/foo
+			continue
+		}
 		loc = strings.TrimSuffix(loc[:i], "/")
 	}
 }
