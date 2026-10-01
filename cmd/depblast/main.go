@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -51,11 +52,22 @@ func main() {
 		fmt.Fprintf(os.Stderr, "depblast: unknown command %q\n\n%s", os.Args[1], usage)
 		os.Exit(2)
 	}
-	if err := run(ctx, os.Args[2:]); err != nil {
+	err := run(ctx, os.Args[2:])
+	var code exitCode
+	switch {
+	case errors.As(err, &code):
+		os.Exit(int(code))
+	case err != nil:
 		fmt.Fprintln(os.Stderr, "depblast:", err)
 		os.Exit(1)
 	}
 }
+
+// exitCode ends the program quietly with that status. audit uses it to
+// say "found something" without it reading as a failure.
+type exitCode int
+
+func (c exitCode) Error() string { return fmt.Sprintf("exit status %d", int(c)) }
 
 // rel shows a path relative to the working directory when it is inside
 // it, which is shorter to read.

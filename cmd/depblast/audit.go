@@ -28,7 +28,8 @@ func runAudit(ctx context.Context, args []string) error {
 			"Checks every package version in the indexed projects against OSV.dev and lists\n"+
 			"the known vulnerabilities, worst first, with the projects that ship each one\n"+
 			"and the chain that pulls it in. Only package names, ecosystems and versions are\n"+
-			"sent to OSV.dev. Advisories without a severity are shown unless -min is set.\n\n")
+			"sent to OSV.dev. Advisories without a severity are shown unless -min is set.\n\n"+
+			"Exits with status 3 when it lists any vulnerability, so it can fail a CI job.\n\n")
 		fs.PrintDefaults()
 	}
 	fs.Parse(args)
@@ -142,6 +143,9 @@ func runAudit(ctx context.Context, args []string) error {
 		what = strings.ToLower(*minSev) + " or worse vulnerabilities"
 	}
 	fmt.Printf("\n%d %s in %d indexed projects\n", len(vulns), what, len(projects))
+	if len(vulns) > 0 {
+		return exitCode(3)
+	}
 	return nil
 }
 
