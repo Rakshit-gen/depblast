@@ -46,6 +46,19 @@ func runHit(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
+	// PyPI names are stored normalized (Django as django, ruamel.yaml as
+	// ruamel-yaml), so look that spelling up too.
+	if norm := dep.NormalizePy(name); norm != name {
+		more, err := store.Copies(ctx, c, norm)
+		if err != nil {
+			return err
+		}
+		for _, cp := range more {
+			if cp.Pkg.Eco == dep.PyPI {
+				copies = append(copies, cp)
+			}
+		}
+	}
 	copies = slices.DeleteFunc(copies, func(cp store.Copy) bool { return !rng.Match(cp.Pkg.Version) })
 	if len(copies) == 0 {
 		fmt.Printf("no indexed project locks %s\n", fs.Arg(0))
