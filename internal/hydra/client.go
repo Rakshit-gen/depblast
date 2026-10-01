@@ -61,7 +61,6 @@ type request struct {
 	CellID     string         `json:"cell_id"`
 	Query      string         `json:"query"`
 	Parameters map[string]any `json:"parameters,omitempty"`
-	ReadEpoch  *uint64        `json:"read_epoch,omitempty"`
 	PageSize   int            `json:"page_size,omitempty"`
 	Cursor     *uint64        `json:"cursor,omitempty"`
 }
@@ -74,8 +73,9 @@ type response struct {
 }
 
 // Query runs one statement and follows the result cursor until every row
-// is read. Later pages pin the first page's read epoch, so all rows come
-// from the same snapshot.
+// is read. HydraDB v0.2 reruns the statement for each page and rejects
+// read_epoch on HTTP, so a write between pages can shift rows: an index
+// running while hit reads may see a page twice or miss rows.
 func (c *Client) Query(ctx context.Context, query string, params map[string]any) (*Result, error) {
 	req := request{CellID: c.Cell, Query: query, Parameters: params}
 	res := &Result{}
@@ -92,7 +92,6 @@ func (c *Client) Query(ctx context.Context, query string, params map[string]any)
 			return res, nil
 		}
 		req.Cursor = page.NextCursor
-		req.ReadEpoch = page.ReadEpoch
 	}
 }
 

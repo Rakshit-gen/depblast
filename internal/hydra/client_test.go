@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-func TestQueryFollowsCursorAndPinsEpoch(t *testing.T) {
+func TestQueryFollowsCursor(t *testing.T) {
 	var calls []request
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/v1/graphs/default/query" || r.Header.Get("Authorization") != "Bearer tok" || r.Header.Get("X-Graph-Namespace") != "default" {
@@ -36,7 +36,7 @@ func TestQueryFollowsCursorAndPinsEpoch(t *testing.T) {
 	if n, _ := res.Rows[1][0].Int(); n != 2 {
 		t.Fatalf("second row %d", n)
 	}
-	if calls[1].ReadEpoch == nil || *calls[1].ReadEpoch != 9 || calls[0].Parameters["x"] != float64(1) {
+	if *calls[1].Cursor != 1 || calls[1].Parameters["x"] != float64(1) {
 		t.Fatalf("second call %+v", calls[1])
 	}
 }
