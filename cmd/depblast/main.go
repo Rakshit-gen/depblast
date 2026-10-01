@@ -15,13 +15,13 @@ import (
 const usage = `depblast finds which of your projects ship a package version, and why.
 
 Usage:
-  depblast index PATH...           read the lockfiles under PATH and store their dependency graphs
-  depblast hit NAME[@VERSIONS]     list the projects that lock NAME, and the chain that pulls it in
-  depblast audit                   check every indexed package version against OSV.dev
-  depblast projects                list the indexed lockfiles, marking changed and missing ones
-  depblast forget PATH...          remove indexed lockfiles at or under PATH (-missing: all deleted ones)
-  depblast server status|stop|log  manage the background HydraDB depblast runs
-  depblast version                 print depblast's version and the bundled HydraDB's
+  depblast index PATH...        read the lockfiles under PATH and store their dependency graphs
+  depblast hit NAME[@VERSIONS]  list the projects that lock NAME, and the chain that pulls it in
+  depblast audit                check every indexed package version against OSV.dev
+  depblast projects             list the indexed lockfiles, marking changed and missing ones
+  depblast forget PATH...       remove indexed lockfiles at or under PATH (-missing: all deleted ones)
+  depblast server COMMAND       status, stop, log or rebuild the background HydraDB
+  depblast version              print depblast's version and the bundled HydraDB's
 
 Supported lockfiles: package-lock.json, npm-shrinkwrap.json, yarn.lock (v1),
 pnpm-lock.yaml (v6, v9), Cargo.lock, go.mod (needs Go installed), uv.lock,
