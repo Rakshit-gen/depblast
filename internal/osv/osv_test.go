@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"slices"
+	"strconv"
 	"testing"
 
 	"github.com/Rakshit-gen/depblast/internal/dep"
@@ -36,6 +37,47 @@ func TestAffectingFollowsPages(t *testing.T) {
 	}
 	if len(got[0]) != 2 || got[0][1].ID != "B" || len(got[1]) != 0 {
 		t.Fatalf("got %+v", got)
+	}
+}
+
+func TestAffectingSplitsBatches(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct{ Queries []query }
+		json.NewDecoder(r.Body).Decode(&body)
+		if len(body.Queries) > batchSize {
+			t.Errorf("batch of %d", len(body.Queries))
+		}
+		// Answer each query with its own version as the vulnerability
+		// id, so a result put in the wrong slot shows up.
+		var resp struct {
+			Results []struct {
+				Vulns []Ref `json:"vulns"`
+			} `json:"results"`
+		}
+		resp.Results = make([]struct {
+			Vulns []Ref `json:"vulns"`
+		}, len(body.Queries))
+		for i, q := range body.Queries {
+			resp.Results[i].Vulns = []Ref{{ID: q.Version}}
+		}
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer srv.Close()
+
+	c := New()
+	c.BaseURL = srv.URL
+	pkgs := make([]dep.Pkg, 2*batchSize+7)
+	for i := range pkgs {
+		pkgs[i] = dep.Pkg{Eco: dep.Npm, Name: "p", Version: strconv.Itoa(i)}
+	}
+	got, err := c.Affecting(t.Context(), pkgs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, refs := range got {
+		if len(refs) != 1 || refs[0].ID != strconv.Itoa(i) {
+			t.Fatalf("package %d got %+v", i, refs)
+		}
 	}
 }
 
