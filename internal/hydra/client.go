@@ -4,6 +4,7 @@ package hydra
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -58,6 +59,7 @@ type Error struct {
 func (e *Error) Error() string { return "hydradb: " + e.Code + ": " + e.Message }
 
 type request struct {
+	QueryID    string         `json:"query_id"`
 	CellID     string         `json:"cell_id"`
 	Query      string         `json:"query"`
 	Parameters map[string]any `json:"parameters,omitempty"`
@@ -73,11 +75,11 @@ type response struct {
 }
 
 // Query runs one statement and follows the result cursor until every row
-// is read. HydraDB v0.2 reruns the statement for each page and rejects
-// read_epoch on HTTP, so a write between pages can shift rows: an index
-// running while hit reads may see a page twice or miss rows.
+// is read. HydraDB holds the remaining rows on the server and only hands
+// them to requests that repeat the first page's query id, so every
+// request carries a fresh one.
 func (c *Client) Query(ctx context.Context, query string, params map[string]any) (*Result, error) {
-	req := request{CellID: c.Cell, Query: query, Parameters: params}
+	req := request{QueryID: "depblast-" + rand.Text(), CellID: c.Cell, Query: query, Parameters: params}
 	res := &Result{}
 	for {
 		var page response

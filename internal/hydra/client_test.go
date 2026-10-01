@@ -36,7 +36,7 @@ func TestQueryFollowsCursor(t *testing.T) {
 	if n, _ := res.Rows[1][0].Int(); n != 2 {
 		t.Fatalf("second row %d", n)
 	}
-	if *calls[1].Cursor != 1 || calls[1].Parameters["x"] != float64(1) {
+	if *calls[1].Cursor != 1 || calls[1].QueryID == "" || calls[1].QueryID != calls[0].QueryID || calls[1].Parameters["x"] != float64(1) {
 		t.Fatalf("second call %+v", calls[1])
 	}
 }
